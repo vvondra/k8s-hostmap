@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <script src="https://www.gstatic.com/charts/loader.js"></script>
+    <title>Kubernetes stats</title>
+
+  </head>
+  <body>
+    <div id="chart_div"></div>
+
+    <script>
+      google.charts.load('current', {
+        'packages': ['treemap']
+      });
+      google.charts.setOnLoadCallback(drawChart);
+
+      function drawChart() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'ID');
+        data.addColumn('string', 'Parent');
+        data.addColumn('number', 'Memory ');
+        data.addRows([
+          ['Kubernetes', null, 0],
+
+          <% @nodes_by_ip.each do |nodeIp, node| %>
+            ['<%= nodeIp %>', 'Kubernetes', 15000],
+            ['<%= nodeIp %> unused', '<%= nodeIp %>', <%= mebibytes(@top_nodes[nodeIp][:mem]) %>],
+            <% @pods_by_ip[nodeIp].each do |pod| %>
+              [
+                '<%= pod.dig(:metadata, :name) %>',
+                '<%= nodeIp %>',
+                <%= mebibytes(pod.dig(:spec, :containers, 0, :resources, :requests, :memory)) %>
+              ],
+            <% end %>
+          <% end %>
+
+        ]);
+
+        function showFullTooltip(row, size, value) {
+          return '<div style="background:#fd9; padding:10px; border-style:solid">' +
+                 '<span style="font-family:Courier"><b>' + data.getValue(row, 0) +
+                 '</b>, ' + data.getValue(row, 1) + ', ' + data.getValue(row, 2) +
+                 '</span><br>' +
+                 'Datatable row: ' + row + '<br>' +
+           data.getColumnLabel(2) +
+                 ' (total value of this cell and its children): ' + size + '<br>' +
+           data.getColumnLabel(2) + ': ' + value + ' </div>';
+        }
+
+        var tree = new google.visualization.TreeMap(document.getElementById('chart_div'));
+
+        var options = {
+          highlightOnMouseOver: true,
+          maxDepth: 2,
+          maxPostDepth: 3,
+          minHighlightColor: '#8c6bb1',
+          midHighlightColor: '#9ebcda',
+          maxHighlightColor: '#edf8fb',
+          minColor: '#009688',
+          midColor: '#f7f7f7',
+          maxColor: '#ee8100',
+          headerHeight: 25,
+          showScale: true,
+          height: 600,
+          useWeightedAverageForAggregation: true,
+          generateTooltip: showFullTooltip
+        };
+
+        tree.draw(data, options);
+
+      }
+    </script>
+  </body>
+</html>
