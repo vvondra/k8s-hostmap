@@ -1,37 +1,58 @@
 require 'sinatra'
 require 'json'
+require 'net/http'
 require 'sinatra/reloader' if development?
 
-get '/' do
-  nodes = JSON.parse!(File.read('nodes.json'), symbolize_names: true)[:items]
-  @nodes_by_ip = nodes.group_by do |node|
+pods_url = URI('http://localhost:8001/api/v1/namespaces/default/pods?limit=500')
+nodes_url = URI('http://localhost:8001/api/v1/nodes')
+heapster_pods_url = URI('http://localhost:8001/api/v1/namespaces/kube-system/services/http:heapster:/proxy/apis/metrics/v1alpha1/namespaces/default/pods')
+heapster_nodes_url = URI('http://localhost:8001/api/v1/namespaces/kube-system/services/http:heapster:/proxy/apis/metrics/v1alpha1/nodes')
+
+pods = JSON.parse!(Net::HTTP.get(pods_url), symbolize_names: true)[:items]
+nodes = JSON.parse!(Net::HTTP.get(nodes_url), symbolize_names: true)[:items]
+top_nodes = JSON.parse!(Net::HTTP.get(heapster_nodes_url), symbolize_names: true)[:items]
+top_pods = JSON.parse!(Net::HTTP.get(heapster_pods_url), symbolize_names: true)[:items]
+
+get '/:metric' do |metric|
+  nodes_by_ip = nodes.group_by do |node|
     addresses = node.dig(:status, :addresses)
     puts addresses if addresses.nil?
     break 'nil' if addresses.nil?
     address = addresses.detect { |a| a[:type] == 'InternalIP' }
     address[:address]
   end
+  @nodes_by_ip = nodes_by_ip.transform_values { |v| v.first }
 
-  pods = JSON.parse!(File.read('all.json'), symbolize_names: true)[:items]
   @pods_by_ip = pods.group_by { |i| i.dig(:status, :hostIP) }
 
-  @top_nodes = File.open('top_nodes.tsv')
-             .each_line
-             .drop(1)
-             .map { |line| line.split(' ') }
-             .map { |line|
-                {
-                  ip: line[0].gsub(/ip-(\d+)-(\d+)-(\d+)-(\d+).+/, '\1.\2.\3.\4'),
-                  cpu_cores: line[1],
-                  cpu_perc: line[2].to_i,
-                  mem: line[3],
-                  mem_perc: line[4].to_i
-                }
-             }
-             .group_by { |line| line[:ip] }
-             .transform_values { |v| v.first }
+  @top_nodes = top_nodes
+          .map { |node|
+              {
+                node: node[:metadata][:name].gsub(/ip-(\d+)-(\d+)-(\d+)-(\d+).+/, '\1.\2.\3.\4'),
+                cpu_used: node[:usage][:cpu],
+                mem_used: node[:usage][:memory]
+              }
+          }
+          .group_by { |row| row[:node] }
+          .transform_values { |v| v.first }
 
-  erb :index
+  @nodes_by_ip.each do |nodeIp, node|
+    @top_nodes[nodeIp][:cpu_avail] = node.dig(:status, :capacity, :cpu)
+    @top_nodes[nodeIp][:mem_avail] = node.dig(:status, :capacity, :memory)
+  end
+
+  @top_pods = top_pods
+          .map { |pod|
+              {
+                pod: pod[:metadata][:name],
+                cpu_used: pod[:containers][0][:usage][:cpu],
+                mem_used: pod[:containers][0][:usage][:memory]
+              }
+          }
+          .group_by { |row| row[:pod] }
+          .transform_values { |v| v.first }
+
+  erb metric.to_sym
 end
 
 helpers do
@@ -45,6 +66,17 @@ helpers do
         value / 1024
       else
         value / 1024 / 1024 # assume bytes
+    end
+  end
+
+  def milicores(text)
+    return 10 if text.nil? or text.empty?
+    value = text.to_i
+    case text.gsub(/\d+/, '')
+      when 'm'
+        value
+      else
+        value * 1023 # full cores
     end
   end
 end
