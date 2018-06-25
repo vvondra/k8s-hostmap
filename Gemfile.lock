@@ -4,14 +4,14 @@ GEM
     daemons (1.2.6)
     eventmachine (1.2.5)
     json (2.1.0)
-    mustermann (1.0.1)
-    rack (2.0.3)
-    rack-protection (2.0.0)
+    mustermann (1.0.2)
+    rack (2.0.5)
+    rack-protection (2.0.3)
       rack
-    sinatra (2.0.0)
+    sinatra (2.0.3)
       mustermann (~> 1.0)
       rack (~> 2.0)
-      rack-protection (= 2.0.0)
+      rack-protection (= 2.0.3)
       tilt (~> 2.0)
     thin (1.7.2)
       daemons (~> 1.0, >= 1.0.9)
@@ -28,4 +28,4 @@ DEPENDENCIES
   thin
 
 BUNDLED WITH
-   1.16.0
+   1.16.1
