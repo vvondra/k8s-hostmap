@@ -5,8 +5,8 @@ require 'sinatra/reloader' if development?
 
 pods_url = URI('http://localhost:8001/api/v1/namespaces/default/pods?limit=500')
 nodes_url = URI('http://localhost:8001/api/v1/nodes')
-heapster_pods_url = URI('http://localhost:8001/api/v1/namespaces/kube-system/services/http:heapster:/proxy/apis/metrics/v1alpha1/namespaces/default/pods')
-heapster_nodes_url = URI('http://localhost:8001/api/v1/namespaces/kube-system/services/http:heapster:/proxy/apis/metrics/v1alpha1/nodes')
+heapster_pods_url = URI('http://localhost:8001/apis/metrics.k8s.io/v1beta1/namespaces/default/pods')
+heapster_nodes_url = URI('http://localhost:8001/apis/metrics.k8s.io/v1beta1/nodes')
 
 pods = JSON.parse!(Net::HTTP.get(pods_url), symbolize_names: true)[:items]
 nodes = JSON.parse!(Net::HTTP.get(nodes_url), symbolize_names: true)[:items]
